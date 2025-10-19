@@ -1,14 +1,37 @@
-import streamlit as st
+import math
+import io
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")  # headless backend for Streamlit Cloud
 import matplotlib.pyplot as plt
 from matplotlib.patches import Polygon
 from matplotlib.collections import PatchCollection
-import matplotlib.cm as cm
 from matplotlib.colors import Normalize
-import pandas as pd
-import numpy as np
-import io
+import streamlit as st
 
-# Template data for the CSV download
+# --- Page setup ---
+st.set_page_config(layout="wide", page_title="Hex Map India")
+
+# --- Global style ---
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+    body, .stApp {
+        background-color: #EDE8D0;
+        font-family: "Inter", "Inter UI", sans-serif;
+    }
+    .main .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+plt.rcParams["font.family"] = "Inter"
+
+# --- Template data ---
 TEMPLATE_CODES = [
     "AN","AP","AR","AS","BR","CH","CG","DL","DH","GA","GJ","HR","HP",
     "JK","JH","KA","KL","LA","LD","MP","MH","MN","ML","MZ","NL","OD",
@@ -26,276 +49,282 @@ TEMPLATE_STATES = [
     "Tripura","Uttar Pradesh","Uttarakhand","West Bengal"
 ]
 
-# Function to create template CSV
-def create_template_csv():
-    """Creates a template CSV file with state codes and empty values"""
-    template_df = pd.DataFrame({
-        'state': TEMPLATE_STATES,
-        'code': TEMPLATE_CODES,
-        'value': [0] * len(TEMPLATE_CODES)
-    })
-    return template_df
+# --- Create hex grid ---
+def hex_vertices(x, y, r=1, orientation="flat"):
+    """Generate the 6 corner points of a hexagon"""
+    start_deg = 30 if orientation == "pointy" else 0
+    return [
+        (x + r * math.cos(math.radians(start_deg + 60 * i)),
+         y + r * math.sin(math.radians(start_deg + 60 * i)))
+        for i in range(6)
+    ]
 
-# Function to generate hexagon vertices
-def generate_hex_vertices(center_x, center_y, size=1):
-    """Generate the 6 vertices of a hexagon given its center"""
-    angles = np.linspace(0, 2 * np.pi, 7)  # 7 points to close the hexagon
-    vertices = []
-    for angle in angles:
-        x = center_x + size * np.cos(angle)
-        y = center_y + size * np.sin(angle)
-        vertices.append([x, y])
-    return vertices
+def make_hex_grid(rows=10, cols=10, r=1, orientation="flat"):
+    """Create a grid of hexagons with specified rows and columns"""
+    if orientation == "pointy":
+        w, h = math.sqrt(3)*r, 2*r
+        h_spacing, v_spacing = w, 3/4*h
+    else:
+        w, h = 2*r, math.sqrt(3)*r
+        h_spacing, v_spacing = 3/4*w, h
+    
+    hexes = []
+    for row in range(rows):
+        for col in range(cols):
+            if orientation == "pointy":
+                cx = col*h_spacing + (row % 2)*(h_spacing/2)
+                cy = row*v_spacing
+            else:
+                cx = col*h_spacing
+                cy = row*v_spacing + (col % 2)*(v_spacing/2)
+            
+            hexes.append({
+                "hex_id": row*cols + col,
+                "cx": cx,
+                "cy": cy,
+                "verts": hex_vertices(cx, cy, r, orientation)
+            })
+    
+    return pd.DataFrame(hexes)
 
-# Function to process hex grid data
-def process_hex_grid(hex_df):
-    """Process hex grid dataframe and add vertices if not present"""
-    # Check if 'verts' column exists
-    if 'verts' not in hex_df.columns:
-        # If row and col exist, generate vertices
-        if 'row' in hex_df.columns and 'col' in hex_df.columns:
-            hex_df['cx'] = hex_df['col'] * 1.5
-            hex_df['cy'] = hex_df['row'] * np.sqrt(3) + (hex_df['col'] % 2) * np.sqrt(3) / 2
-            hex_df['verts'] = hex_df.apply(
-                lambda row: generate_hex_vertices(row['cx'], row['cy'], size=0.95), 
-                axis=1
-            )
-        # If cx and cy exist but no verts
-        elif 'cx' in hex_df.columns and 'cy' in hex_df.columns:
-            hex_df['verts'] = hex_df.apply(
-                lambda row: generate_hex_vertices(row['cx'], row['cy'], size=0.95), 
-                axis=1
-            )
-        else:
-            st.error("The hex_map_key.csv must contain either 'verts' or 'row'/'col' or 'cx'/'cy' columns")
-            st.stop()
+# --- Plot helper ---
+def plot_matched_hexes(merged_df, cmap_name="viridis", title="Hex Map India"):
+    """Create a hex map visualization with colors based on values"""
+    if merged_df.empty:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No matched hexes found", ha="center", va="center")
+        ax.axis("off")
+        return fig
     
-    return hex_df
-
-# Function to plot hex map with values
-def plot_hex_values(df_values, hex_grid, code_col="code", value_col="value", 
-                    cmap_name="viridis", plot_title="India Hex Map"):
-    """
-    Plots hexagons colored by numeric values.
-    """
-    # Merge input values with hex grid
-    plot_df = hex_grid.merge(df_values, on=code_col, how="left")
+    # Convert values to numeric
+    vals = pd.to_numeric(merged_df["value"], errors="coerce")
     
-    # Check for missing values
-    if plot_df[value_col].isna().any():
-        st.warning("Some states are missing values. They will be shown in gray.")
-    
-    # Prepare colormap
-    vals = plot_df[value_col].dropna()
-    if len(vals) == 0:
-        st.error("No valid values found in the uploaded data")
-        return None, None
-    
-    vmin, vmax = vals.min(), vals.max()
-    cmap = cm.get_cmap(cmap_name)
-    norm = Normalize(vmin=vmin, vmax=vmax)
+    # Get colormap
+    cmap = matplotlib.colormaps.get(cmap_name)
+    norm = Normalize(vmin=vals.min(), vmax=vals.max())
     
     # Build patches and colors
     patches = []
     facecolors = []
-    for index, row in plot_df.iterrows():
+    for _, row in merged_df.iterrows():
         poly = Polygon(row["verts"], closed=True, edgecolor="black", linewidth=0.5)
         patches.append(poly)
         
-        # Use gray for missing values
-        if pd.isna(row[value_col]):
-            facecolors.append('lightgray')
+        val = row["value"]
+        if pd.isna(val):
+            facecolors.append((1, 1, 1, 1))  # white for missing values
         else:
-            facecolors.append(cmap(norm(row[value_col])))
+            facecolors.append(cmap(norm(float(val))))
     
-    # Create the plot
+    # Create the figure
     fig, ax = plt.subplots(figsize=(10, 10))
-    collection = PatchCollection(patches, facecolor=facecolors, match_original=True)
-    ax.add_collection(collection)
+    ax.add_collection(PatchCollection(patches, facecolor=facecolors, match_original=True))
     
-    # Add labels to hexagons
-    for index, row in plot_df.iterrows():
-        ax.text(row["cx"], row["cy"], row[code_col], 
-                ha="center", va="center", fontsize=8, fontweight='bold')
+    # Add labels
+    for _, row in merged_df.iterrows():
+        label = str(row["code"])
+        ax.text(row["cx"], row["cy"], label, ha="center", va="center", 
+                fontsize=9, fontweight="bold")
     
     ax.set_aspect("equal")
     ax.autoscale()
     ax.margins(0.05)
-    ax.set_axis_off()
-    ax.set_title(plot_title, fontsize=16, fontweight='bold', pad=20)
+    ax.axis("off")
+    ax.set_title(title, fontsize=18, fontweight="bold", pad=20)
     
     # Add colorbar
     from matplotlib.cm import ScalarMappable
     sm = ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array(vals)
-    fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04, label=value_col)
+    fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04, label="Value")
     
-    return fig, plot_df
+    return fig
 
-# Function to plot empty hex map
-def plot_empty_hex_map(hex_grid):
-    """Plots hexagons without any color values"""
+def plot_empty_hex_grid(hex_grid, codes):
+    """Create an empty hex map showing all state codes"""
     fig, ax = plt.subplots(figsize=(10, 10))
     
     patches = []
-    for index, row in hex_grid.iterrows():
+    for _, row in hex_grid.iterrows():
         poly = Polygon(row["verts"], closed=True, edgecolor="black", 
                       linewidth=0.5, facecolor='lightgray')
         patches.append(poly)
     
-    collection = PatchCollection(patches, match_original=True)
-    ax.add_collection(collection)
+    ax.add_collection(PatchCollection(patches, match_original=True))
     
     # Add labels
-    for index, row in hex_grid.iterrows():
-        ax.text(row["cx"], row["cy"], row[code_col], 
-                ha="center", va="center", fontsize=8, fontweight='bold')
+    for idx, row in hex_grid.iterrows():
+        if idx < len(codes):
+            ax.text(row["cx"], row["cy"], codes[idx], ha="center", va="center", 
+                    fontsize=9, fontweight="bold")
     
     ax.set_aspect("equal")
     ax.autoscale()
     ax.margins(0.05)
-    ax.set_axis_off()
-    ax.set_title("India Hex Map (Upload data to visualize)", 
-                fontsize=16, fontweight='bold', pad=20)
+    ax.axis("off")
+    ax.set_title("India Hex Map - Upload data to visualize", 
+                fontsize=18, fontweight="bold", pad=20)
     
     return fig
 
-# Streamlit App
-def main():
-    st.set_page_config(page_title="India Hex Map Visualizer", layout="wide")
-    
-    st.title("🗺️ India Hex Map Visualizer")
-    st.markdown("Create beautiful hex map visualizations for Indian states and territories")
-    
-    # Sidebar
-    st.sidebar.header("📁 Data Upload & Download")
-    
-    # Download template button
-    st.sidebar.subheader("1. Download Template")
-    template_df = create_template_csv()
-    csv_template = template_df.to_csv(index=False)
-    st.sidebar.download_button(
-        label="⬇️ Download CSV Template",
-        data=csv_template,
-        file_name="india_hex_map_template.csv",
-        mime="text/csv"
-    )
-    st.sidebar.markdown("*Fill in the 'value' column with your data*")
-    
-    # Upload file
-    st.sidebar.subheader("2. Upload Your Data")
-    uploaded_file = st.sidebar.file_uploader(
-        "Upload filled CSV file", 
-        type=['csv'],
-        help="Upload the template CSV after filling in your values"
-    )
-    
-    # Color scheme selector
-    st.sidebar.subheader("3. Customize Visualization")
-    colormap_options = [
-        'viridis', 'plasma', 'inferno', 'magma', 'cividis',
-        'Blues', 'Reds', 'Greens', 'Oranges', 'Purples',
-        'YlOrRd', 'YlGnBu', 'RdYlGn', 'RdYlBu', 'Spectral'
-    ]
-    selected_colormap = st.sidebar.selectbox(
-        "Select Color Scheme",
-        colormap_options,
-        index=0
-    )
-    
-    # Plot title input
-    plot_title = st.sidebar.text_input(
-        "Enter Plot Title",
-        value="India Hex Map"
-    )
-    
-    # Load hex grid data
-    try:
-        hex_grid = pd.read_csv('hex_map_key.csv')
-        st.sidebar.success(f"✅ Loaded hex grid with {len(hex_grid)} states")
-        
-        # Show columns for debugging
-        with st.sidebar.expander("🔍 Hex Grid Info"):
-            st.write("Columns:", list(hex_grid.columns))
-            st.write("First few rows:")
-            st.dataframe(hex_grid.head())
-        
-        # Process the hex grid to ensure it has all needed columns
-        hex_grid = process_hex_grid(hex_grid)
-        
-    except FileNotFoundError:
-        st.error("⚠️ Error: 'hex_map_key.csv' not found. Please ensure the file is in the same directory.")
-        st.info("The hex_map_key.csv should contain columns like: code, row, col (or cx, cy, verts)")
-        st.stop()
-    except Exception as e:
-        st.error(f"⚠️ Error loading hex grid: {str(e)}")
-        st.stop()
-    
-    # Main content area
-    if uploaded_file is None:
-        # Show empty map
-        st.info("👆 Upload a CSV file from the sidebar to visualize your data")
-        fig = plot_empty_hex_map(hex_grid)
-        st.pyplot(fig)
-        
-    else:
-        # Read uploaded file
-        try:
-            user_data = pd.read_csv(uploaded_file)
-            
-            # Validate the uploaded file
-            if 'code' not in user_data.columns or 'value' not in user_data.columns:
-                st.error("❌ Error: CSV must contain 'code' and 'value' columns")
-                st.stop()
-            
-            # Show data preview
-            with st.expander("📊 Preview Uploaded Data"):
-                st.dataframe(user_data)
-            
-            # Create visualization
-            result = plot_hex_values(
-                user_data, 
-                hex_grid, 
-                code_col="code", 
-                value_col="value",
-                cmap_name=selected_colormap,
-                plot_title=plot_title
-            )
-            
-            if result is None or result[0] is None:
-                st.stop()
-            
-            fig, plot_df = result
-            
-            # Display the map
-            st.pyplot(fig)
-            
-            # Download button for the map
-            st.sidebar.subheader("4. Download Map")
-            buffer = io.BytesIO()
-            fig.savefig(buffer, format='png', dpi=300, bbox_inches='tight')
-            buffer.seek(0)
-            
-            st.sidebar.download_button(
-                label="⬇️ Download Map as PNG",
-                data=buffer,
-                file_name=f"{plot_title.replace(' ', '_')}.png",
-                mime="image/png"
-            )
-            
-            # Show statistics
-            st.sidebar.subheader("📈 Statistics")
-            valid_values = user_data['value'].dropna()
-            if len(valid_values) > 0:
-                st.sidebar.metric("Minimum Value", f"{valid_values.min():.2f}")
-                st.sidebar.metric("Maximum Value", f"{valid_values.max():.2f}")
-                st.sidebar.metric("Average Value", f"{valid_values.mean():.2f}")
-                st.sidebar.metric("States with Data", len(valid_values))
-            
-        except Exception as e:
-            st.error(f"❌ Error processing file: {str(e)}")
-            st.info("Please make sure your CSV has 'code' and 'value' columns")
-            st.stop()
+# --- Sidebar setup ---
+st.sidebar.markdown("## 📥 Step 1 — Download Template")
 
-if __name__ == "__main__":
-    main()
+# Create template with map_title row
+map_title_row = pd.DataFrame({
+    "map_title": ["Hex Map India"],
+    "code": [""],
+    "state": [""],
+    "value": [""]
+})
+
+template_table = pd.DataFrame({
+    "map_title": [""] * len(TEMPLATE_CODES),
+    "code": TEMPLATE_CODES,
+    "state": TEMPLATE_STATES,
+    "value": [""] * len(TEMPLATE_CODES)
+})
+
+final_template = pd.concat([map_title_row, template_table], ignore_index=True)
+
+st.sidebar.download_button(
+    "⬇️ Download CSV Template",
+    data=final_template.to_csv(index=False),
+    file_name="hex_map_template.csv",
+    mime="text/csv"
+)
+st.sidebar.markdown("*Fill the 'value' column and optionally edit 'map_title'*")
+
+st.sidebar.markdown("---")
+
+# --- Step 2: Upload ---
+st.sidebar.markdown("## 📤 Step 2 — Upload Your Data")
+uploaded = st.sidebar.file_uploader(
+    "Upload filled CSV file", 
+    type=["csv"],
+    help="Upload the template after filling in your data"
+)
+
+st.sidebar.markdown("---")
+
+# --- Step 3: Customize ---
+st.sidebar.markdown("## 🎨 Step 3 — Customize")
+
+cmap_name = st.sidebar.selectbox(
+    "Color Scheme", 
+    options=['viridis', 'plasma', 'inferno', 'magma', 'cividis',
+             'Blues', 'Reds', 'Greens', 'Oranges', 'Purples',
+             'YlOrRd', 'YlGnBu', 'RdYlGn', 'RdYlBu', 'Spectral'],
+    index=0
+)
+
+hex_radius = st.sidebar.slider("Hex Size", 0.4, 2.0, 1.0, 0.1)
+
+# Colorbar preview
+st.sidebar.write("Color Preview:")
+cb_fig, cb_ax = plt.subplots(figsize=(2.2, 0.5))
+cb_ax.set_axis_off()
+cmap_obj = matplotlib.colormaps.get(cmap_name)
+norm = Normalize(vmin=0, vmax=100)
+from matplotlib.cm import ScalarMappable
+sm = ScalarMappable(cmap=cmap_obj, norm=norm)
+sm.set_array([])
+cb_fig.colorbar(sm, ax=cb_ax, orientation="horizontal", fraction=0.9, pad=0.1)
+st.sidebar.pyplot(cb_fig)
+plt.close(cb_fig)
+
+# --- Main content ---
+st.title("🗺️ India Hex Map Visualizer")
+st.markdown("Create beautiful hex map visualizations for Indian states and territories")
+
+# Generate hex grid
+hex_grid = make_hex_grid(rows=6, cols=6, r=hex_radius)
+hex_grid["code"] = TEMPLATE_CODES
+
+if uploaded is None:
+    st.info("👈 Follow the steps in the sidebar to create your visualization")
+    
+    # Show empty hex map
+    fig = plot_empty_hex_grid(hex_grid, TEMPLATE_CODES)
+    st.pyplot(fig)
+    plt.close(fig)
+    
+    # Show instructions
+    st.markdown("### How to use:")
+    st.markdown("1. **Download** the CSV template from the sidebar")
+    st.markdown("2. **Fill in** the 'value' column with your data")
+    st.markdown("3. **Upload** the filled CSV file")
+    st.markdown("4. **Customize** colors and size as needed")
+    st.markdown("5. **Download** your map as PNG")
+    
+else:
+    try:
+        df = pd.read_csv(uploaded)
+    except Exception as e:
+        st.error(f"❌ Error reading CSV: {e}")
+        st.stop()
+    
+    # Normalize column names
+    df.columns = [c.lower().strip() for c in df.columns]
+    
+    # Check required columns
+    for col in ["code", "value"]:
+        if col not in df.columns:
+            st.error(f"❌ Your CSV must include '{col}' column.")
+            st.stop()
+    
+    # Determine map title
+    map_title = "Hex Map India"
+    if "map_title" in df.columns:
+        titles = df["map_title"].dropna().unique()
+        if len(titles) > 0:
+            map_title = str(titles[0])
+    
+    # Merge with hex grid
+    merged = pd.merge(df, hex_grid, on="code", how="inner")
+    
+    if merged.empty:
+        st.warning("⚠️ No matching codes found. Ensure your 'code' values match the template (e.g., 'AP', 'MH').")
+        st.stop()
+    
+    # Create visualization
+    fig = plot_matched_hexes(merged, cmap_name=cmap_name, title=map_title)
+    st.pyplot(fig)
+    
+    # Download PNG button
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("## 💾 Step 4 — Download Map")
+    buf = io.BytesIO()
+    fig.savefig(buf, dpi=300, bbox_inches="tight")
+    buf.seek(0)
+    
+    st.sidebar.download_button(
+        "⬇️ Download Map as PNG",
+        buf,
+        file_name=f"{map_title.replace(' ', '_')}.png",
+        mime="image/png"
+    )
+    
+    # Show statistics
+    st.sidebar.markdown("### 📊 Statistics")
+    valid_values = pd.to_numeric(merged["value"], errors="coerce").dropna()
+    if len(valid_values) > 0:
+        st.sidebar.metric("Min Value", f"{valid_values.min():.2f}")
+        st.sidebar.metric("Max Value", f"{valid_values.max():.2f}")
+        st.sidebar.metric("Average", f"{valid_values.mean():.2f}")
+        st.sidebar.metric("States", len(valid_values))
+    
+    plt.close(fig)
+    
+    # Preview table
+    st.markdown("---")
+    st.subheader("📋 Data Preview")
+    display_cols = ["code", "state", "value"] if "state" in merged.columns else ["code", "value"]
+    st.dataframe(merged[display_cols].head(50), use_container_width=True)
+
+# Footer
+st.markdown("---")
+st.markdown(
+    "<div style='text-align:center;font-size:12px;color:#666;'>Made with ❤️ using Streamlit</div>", 
+    unsafe_allow_html=True
+)
