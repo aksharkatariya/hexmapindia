@@ -5,6 +5,7 @@ from matplotlib.collections import PatchCollection
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 import pandas as pd
+import numpy as np
 import io
 
 # Template data for the CSV download
@@ -31,29 +32,65 @@ def create_template_csv():
     template_df = pd.DataFrame({
         'state': TEMPLATE_STATES,
         'code': TEMPLATE_CODES,
-        'value': [0] * len(TEMPLATE_CODES)  # Empty values for user to fill
+        'value': [0] * len(TEMPLATE_CODES)
     })
     return template_df
 
-# Function to plot hex map
+# Function to generate hexagon vertices
+def generate_hex_vertices(center_x, center_y, size=1):
+    """Generate the 6 vertices of a hexagon given its center"""
+    angles = np.linspace(0, 2 * np.pi, 7)  # 7 points to close the hexagon
+    vertices = []
+    for angle in angles:
+        x = center_x + size * np.cos(angle)
+        y = center_y + size * np.sin(angle)
+        vertices.append([x, y])
+    return vertices
+
+# Function to process hex grid data
+def process_hex_grid(hex_df):
+    """Process hex grid dataframe and add vertices if not present"""
+    # Check if 'verts' column exists
+    if 'verts' not in hex_df.columns:
+        # If row and col exist, generate vertices
+        if 'row' in hex_df.columns and 'col' in hex_df.columns:
+            hex_df['cx'] = hex_df['col'] * 1.5
+            hex_df['cy'] = hex_df['row'] * np.sqrt(3) + (hex_df['col'] % 2) * np.sqrt(3) / 2
+            hex_df['verts'] = hex_df.apply(
+                lambda row: generate_hex_vertices(row['cx'], row['cy'], size=0.95), 
+                axis=1
+            )
+        # If cx and cy exist but no verts
+        elif 'cx' in hex_df.columns and 'cy' in hex_df.columns:
+            hex_df['verts'] = hex_df.apply(
+                lambda row: generate_hex_vertices(row['cx'], row['cy'], size=0.95), 
+                axis=1
+            )
+        else:
+            st.error("The hex_map_key.csv must contain either 'verts' or 'row'/'col' or 'cx'/'cy' columns")
+            st.stop()
+    
+    return hex_df
+
+# Function to plot hex map with values
 def plot_hex_values(df_values, hex_grid, code_col="code", value_col="value", 
                     cmap_name="viridis", plot_title="India Hex Map"):
     """
     Plots hexagons colored by numeric values.
-    
-    Parameters:
-    df_values : pd.DataFrame - DataFrame with code and value columns
-    hex_grid : pd.DataFrame - Hex dataframe with 'code', 'verts', 'cx', 'cy' columns
-    code_col : str - Column name for codes
-    value_col : str - Column name for numeric values
-    cmap_name : str - Matplotlib colormap name
-    plot_title : str - Title for the plot
     """
     # Merge input values with hex grid
     plot_df = hex_grid.merge(df_values, on=code_col, how="left")
     
+    # Check for missing values
+    if plot_df[value_col].isna().any():
+        st.warning("Some states are missing values. They will be shown in gray.")
+    
     # Prepare colormap
-    vals = plot_df[value_col]
+    vals = plot_df[value_col].dropna()
+    if len(vals) == 0:
+        st.error("No valid values found in the uploaded data")
+        return None, None
+    
     vmin, vmax = vals.min(), vals.max()
     cmap = cm.get_cmap(cmap_name)
     norm = Normalize(vmin=vmin, vmax=vmax)
@@ -64,7 +101,12 @@ def plot_hex_values(df_values, hex_grid, code_col="code", value_col="value",
     for index, row in plot_df.iterrows():
         poly = Polygon(row["verts"], closed=True, edgecolor="black", linewidth=0.5)
         patches.append(poly)
-        facecolors.append(cmap(norm(row[value_col])))
+        
+        # Use gray for missing values
+        if pd.isna(row[value_col]):
+            facecolors.append('lightgray')
+        else:
+            facecolors.append(cmap(norm(row[value_col])))
     
     # Create the plot
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -167,11 +209,26 @@ def main():
         value="India Hex Map"
     )
     
-    # Load hex grid data (you need to load your hex_map_key.csv here)
+    # Load hex grid data
     try:
         hex_grid = pd.read_csv('hex_map_key.csv')
-    except:
+        st.sidebar.success(f"✅ Loaded hex grid with {len(hex_grid)} states")
+        
+        # Show columns for debugging
+        with st.sidebar.expander("🔍 Hex Grid Info"):
+            st.write("Columns:", list(hex_grid.columns))
+            st.write("First few rows:")
+            st.dataframe(hex_grid.head())
+        
+        # Process the hex grid to ensure it has all needed columns
+        hex_grid = process_hex_grid(hex_grid)
+        
+    except FileNotFoundError:
         st.error("⚠️ Error: 'hex_map_key.csv' not found. Please ensure the file is in the same directory.")
+        st.info("The hex_map_key.csv should contain columns like: code, row, col (or cx, cy, verts)")
+        st.stop()
+    except Exception as e:
+        st.error(f"⚠️ Error loading hex grid: {str(e)}")
         st.stop()
     
     # Main content area
@@ -196,7 +253,7 @@ def main():
                 st.dataframe(user_data)
             
             # Create visualization
-            fig, plot_df = plot_hex_values(
+            result = plot_hex_values(
                 user_data, 
                 hex_grid, 
                 code_col="code", 
@@ -204,6 +261,11 @@ def main():
                 cmap_name=selected_colormap,
                 plot_title=plot_title
             )
+            
+            if result is None or result[0] is None:
+                st.stop()
+            
+            fig, plot_df = result
             
             # Display the map
             st.pyplot(fig)
@@ -223,12 +285,16 @@ def main():
             
             # Show statistics
             st.sidebar.subheader("📈 Statistics")
-            st.sidebar.metric("Minimum Value", f"{user_data['value'].min():.2f}")
-            st.sidebar.metric("Maximum Value", f"{user_data['value'].max():.2f}")
-            st.sidebar.metric("Average Value", f"{user_data['value'].mean():.2f}")
+            valid_values = user_data['value'].dropna()
+            if len(valid_values) > 0:
+                st.sidebar.metric("Minimum Value", f"{valid_values.min():.2f}")
+                st.sidebar.metric("Maximum Value", f"{valid_values.max():.2f}")
+                st.sidebar.metric("Average Value", f"{valid_values.mean():.2f}")
+                st.sidebar.metric("States with Data", len(valid_values))
             
         except Exception as e:
             st.error(f"❌ Error processing file: {str(e)}")
+            st.info("Please make sure your CSV has 'code' and 'value' columns")
             st.stop()
 
 if __name__ == "__main__":
