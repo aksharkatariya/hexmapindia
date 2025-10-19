@@ -12,10 +12,37 @@ import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 import streamlit as st
 
-st.set_page_config(layout="wide", page_title="Hex Map — Matched Only")
+# Page config
+st.set_page_config(layout="wide", page_title="Hex Map India")
+
+# Inject styles: background color and fonts (best-effort)
+st.markdown(
+    """
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+    /* Quincy is not a standard Google font; attempt import if hosted - fallback will apply */
+    /* If Quincy isn't available the browser will use Inter or system fonts */
+    body, .css-18e3th9, .stApp {
+        background-color: #EDE8D0;
+        font-family: "Quincy", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    /* narrow the sidebar so controls look left-aligned */
+    .css-1d391kg { max-width: 320px; }
+    /* streamlit's main block spacing */
+    .main .block-container{
+        padding-top: 1rem;
+        padding-bottom: 1.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Matplotlib font preference for plots (best-effort)
+plt.rcParams["font.family"] = "Inter"
 
 # -----------------------
-# Small fixed hex grid (10x10, flat) — no controls
+# Small fixed hex grid (10x10, flat) — no UI controls for grid shape
 # -----------------------
 def hex_vertices(x, y, r=1, orientation="flat"):
     start_deg = 30 if orientation == "pointy" else 0
@@ -57,16 +84,13 @@ def make_hex_grid(rows=10, cols=10, r=1, orientation="flat"):
     return pd.DataFrame(hexes)
 
 # -----------------------
-# Attempt to load a local mapping file if present
-# (expected to map hex_id -> code). This is optional;
-# if absent, the app can match on uploaded 'hex_id' column.
+# local mapping (optional)
 # -----------------------
 LOCAL_MAPPING_FILENAME = "state_hex_key.csv"
 
 def load_local_mapping(path):
     try:
         df = pd.read_csv(path)
-        # Heuristic: If it contains hex_id and code use them; else try second column as code
         cols_lower = [c.lower() for c in df.columns]
         if "hex_id" in cols_lower and "code" in cols_lower:
             df = df.rename(columns={df.columns[cols_lower.index("hex_id")]: "hex_id",
@@ -76,27 +100,25 @@ def load_local_mapping(path):
                 df = df.rename(columns={df.columns[0]: "hex_id", df.columns[1]: "code"})
         df = df[["hex_id", "code"]].copy()
         df["hex_id"] = pd.to_numeric(df["hex_id"], errors="coerce").astype("Int64")
-        # clean codes (same logic as earlier)
         df["code"] = df["code"].astype(str).str.replace("[^A-Za-z]", "", regex=True).str.upper().str[-2:]
         return df.dropna(subset=["hex_id"]).reset_index(drop=True)
     except Exception:
         return None
 
 # -----------------------
-# Plotting helper — ALWAYS shows only matched hexes
+# plotting helper (only matched hexes shown)
 # -----------------------
-def plot_matched_hexes(hex_grid, merged_df, code_col="code", value_col="value", cmap_name="viridis", title=None):
+def plot_matched_hexes(hex_grid, merged_df, code_col="code", value_col="value", cmap_name="viridis"):
     """
-    hex_grid: dataframe with hex positions and verts
-    merged_df: hex_grid merged with uploaded data; should contain only matched rows
+    Plot only rows present in merged_df (expects geometry columns from hex_grid merged in).
+    Labels always show 'code' (falls back to hex_id).
     """
-    if merged_df.empty:
+    if merged_df is None or merged_df.empty:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "No matched hexes to plot", ha="center", va="center")
         ax.set_axis_off()
         return fig
 
-    # colors
     patches, facecolors = [], []
     vals = None
     if value_col in merged_df.columns:
@@ -124,21 +146,18 @@ def plot_matched_hexes(hex_grid, merged_df, code_col="code", value_col="value", 
     collection = PatchCollection(patches, facecolor=facecolors, match_original=True)
     ax.add_collection(collection)
 
-    # labels (use state name if provided, else code)
-# labels (always show state code)
+    # labels: always show code
     for _, row in merged_df.iterrows():
         if pd.notna(row.get(code_col)):
             label = row.get(code_col)
         else:
             label = str(int(row["hex_id"]))
-        ax.text(row["cx"], row["cy"], label, ha="center", va="center", fontsize=6)
+        ax.text(row["cx"], row["cy"], label, ha="center", va="center", fontsize=8)
 
     ax.set_aspect("equal")
     ax.autoscale()
     ax.margins(0.05)
     ax.set_axis_off()
-    if title:
-        ax.set_title(title)
 
     if vals is not None and not vals.isnull().all():
         from matplotlib.cm import ScalarMappable
@@ -149,55 +168,104 @@ def plot_matched_hexes(hex_grid, merged_df, code_col="code", value_col="value", 
     return fig
 
 # -----------------------
-# UI
+# Template data (your provided list) + place in sidebar
 # -----------------------
-st.title("Hex Map — Matched Hexes Only")
-st.markdown("Upload a CSV with columns `state, code, value` (example template available below). The app will display only hexes that match the uploaded rows. If the app repository contains `state_hex_key.csv` (mapping `hex_id` → `code`), that mapping will be used to place state codes on the grid; otherwise your upload must include `hex_id` column to place hexes correctly.")
+TEMPLATE_CODES = [
+    "AN","AP","AR","AS","BR","CH","CG","DL","DH","GA","GJ","HR","HP",
+    "JK","JH","KA","KL","LA","LD","MP","MH","MN","ML","MZ","NL","OD",
+    "PY","PB","RJ","SK","TN","TS","TR","UP","UK","WB"
+]
 
-# Colormap selector (the only control)
-cmap = st.selectbox("Colormap", options=sorted(m for m in plt.colormaps()), index=plt.colormaps().index("viridis"))
+TEMPLATE_STATES = [
+    "Andaman and Nicobar Islands","Andhra Pradesh","Arunachal Pradesh",
+    "Assam","Bihar","Chandigarh","Chhattisgarh","Delhi",
+    "Dadra and Nagar Haveli and Daman and Diu","Goa","Gujarat",
+    "Haryana","Himachal Pradesh","Jammu and Kashmir","Jharkhand",
+    "Karnataka","Kerala","Ladakh","Lakshadweep","Madhya Pradesh",
+    "Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha",
+    "Puducherry","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
+    "Tripura","Uttar Pradesh","Uttarakhand","West Bengal"
+]
 
 template_df = pd.DataFrame({
-    "code": [
-        "AN","AP","AR","AS","BR","CH","CG","DL","DH","GA","GJ","HR","HP",
-        "JK","JH","KA","KL","LA","LD","MP","MH","MN","ML","MZ","NL","OD",
-        "PY","PB","RJ","SK","TN","TS","TR","UP","UK","WB"
-    ],
-    "state": [
-        "Andaman and Nicobar Islands","Andhra Pradesh","Arunachal Pradesh",
-        "Assam","Bihar","Chandigarh","Chhattisgarh","Delhi",
-        "Dadra and Nagar Haveli and Daman and Diu","Goa","Gujarat",
-        "Haryana","Himachal Pradesh","Jammu and Kashmir","Jharkhand",
-        "Karnataka","Kerala","Ladakh","Lakshadweep","Madhya Pradesh",
-        "Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha",
-        "Puducherry","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
-        "Tripura","Uttar Pradesh","Uttarakhand","West Bengal"
-    ],
-    "value": [None]*36
+    "code": TEMPLATE_CODES,
+    "state": TEMPLATE_STATES,
+    "value": ["" for _ in TEMPLATE_CODES]
 })
 
-st.write("### Download Template File")
-st.download_button(
-    label="Download Template CSV",
+# -----------------------
+# Sidebar (left panel): Step 1 Download template; Step 2 Upload file
+# Also: Colormap and Hex size controls, and a colorbar preview
+# -----------------------
+st.sidebar.markdown("## Step 1 — Download template")
+st.sidebar.write("Download the pre-filled template, add `value` for the codes you want to plot, then re-upload.")
+st.sidebar.download_button(
+    "Download template (code,state,value)",
     data=template_df.to_csv(index=False),
     file_name="hex_map_template.csv",
     mime="text/csv"
 )
-\
-st.markdown("---")
-uploaded = st.file_uploader("Upload CSV (state, code, value) — file must contain 'code' column. Optionally include 'hex_id' to place directly.", type=["csv"])
 
-# Build the fixed grid and optionally load local mapping
-hex_grid = make_hex_grid(rows=10, cols=10, r=1, orientation="flat")
+st.sidebar.markdown("---")
+st.sidebar.markdown("## Step 2 — Upload edited file")
+uploaded = st.sidebar.file_uploader("Upload CSV (code,state,value). Optionally include hex_id to place directly.", type=["csv"])
+
+# Colormap + hex size side-by-side
+col1, col2 = st.sidebar.columns([2, 1])
+with col1:
+    cmap = st.selectbox("Colormap", options=sorted(m for m in plt.colormaps()), index=plt.colormaps().index("viridis"))
+with col2:
+    hex_radius = st.slider("Hex size", min_value=0.4, max_value=2.0, value=1.0, step=0.1)
+
+st.sidebar.markdown("---")
+st.sidebar.write("Colorbar preview:")
+# Render a small colorbar in the sidebar
+cb_fig, cb_ax = plt.subplots(figsize=(2.2, 0.5))
+norm = Normalize(vmin=0, vmax=100)
+cb = cm.ScalarMappable(norm=norm, cmap=cm.get_cmap(cmap))
+cb_ax.set_axis_off()
+cb_fig.colorbar(cb, orientation="horizontal", fraction=0.9, pad=0.1)
+st.sidebar.pyplot(cb_fig)
+plt.close(cb_fig)
+
+st.sidebar.markdown("---")
+
+# -----------------------
+# Top-level title (main page)
+# -----------------------
+st.markdown("# Hex Map India")
+
+# -----------------------
+# Build the default fixed grid with chosen hex radius
+# -----------------------
+hex_grid = make_hex_grid(rows=10, cols=10, r=hex_radius, orientation="flat")
+
+# Try to load local mapping
 local_mapping = None
 if os.path.exists(LOCAL_MAPPING_FILENAME):
     local_mapping = load_local_mapping(LOCAL_MAPPING_FILENAME)
     if local_mapping is not None:
-        st.info("Loaded local mapping file: `state_hex_key.csv` — app will match by `code` using that file.")
+        st.info("Loaded local mapping file: `state_hex_key.csv` — showing matched hexes from mapping (before upload).")
     else:
-        st.warning("Found `state_hex_key.csv` but couldn't parse it. If you want to use a mapping file, ensure it contains `hex_id` and `code` columns.")
+        st.warning("Found `state_hex_key.csv` but couldn't parse it. To use mapping ensure it contains `hex_id,code`.")
 
-# Process upload
+# -----------------------
+# Show matched hexes before upload (if local mapping available)
+# -----------------------
+placeholder_col1, placeholder_col2 = st.columns([3, 1])  # main area + small right column (unused)
+with placeholder_col1:
+    if local_mapping is not None:
+        # merge mapping with hex_grid to show all codes that have a mapping
+        preview_merged = local_mapping.merge(hex_grid, on="hex_id", how="inner")
+        # show codes only (no values yet)
+        fig_preview = plot_matched_hexes(hex_grid, preview_merged, code_col="code", value_col=None, cmap_name=cmap)
+        st.pyplot(fig_preview)
+    else:
+        st.info("No local mapping found. You can still upload a file with a `hex_id` column to place hexes directly.")
+
+# -----------------------
+# Process upload and show final output after upload
+# -----------------------
 if uploaded is not None:
     try:
         user_df = pd.read_csv(uploaded)
@@ -206,10 +274,8 @@ if uploaded is not None:
         st.stop()
 
     # Normalize column names
-    user_cols = [c.lower() for c in user_df.columns]
-    # Accept 'state','code','value' (case-insensitive) — rename to standard
     rename_map = {}
-    for i, c in enumerate(user_df.columns):
+    for c in user_df.columns:
         lc = c.lower()
         if lc == "state":
             rename_map[c] = "state"
@@ -223,38 +289,31 @@ if uploaded is not None:
 
     # If codes present and local mapping exists: merge on code
     if "code" in user_df.columns and local_mapping is not None:
-        # merge user's data (state, code, value) with local mapping on code
         merged = local_mapping.merge(user_df, on="code", how="inner")
-        # attach geometry from hex_grid by hex_id
         merged = merged.merge(hex_grid, on="hex_id", how="left")
         matched_count = len(merged)
         if matched_count == 0:
             st.warning("No matching codes found between your upload and local mapping.")
         else:
             st.success(f"Matched {matched_count} rows by code using `state_hex_key.csv`.")
-            fig = plot_matched_hexes(hex_grid, merged, code_col="code", value_col="value", cmap_name=cmap, title="Matched hexes (by code)")
-            st.pyplot(fig)
+            fig_final = plot_matched_hexes(hex_grid, merged, code_col="code", value_col="value", cmap_name=cmap)
+            st.pyplot(fig_final)
 
     # Else if upload includes hex_id, merge directly
     elif "hex_id" in user_df.columns:
-        # ensure hex_id numeric
         user_df["hex_id"] = pd.to_numeric(user_df["hex_id"], errors="coerce").astype("Int64")
         merged = hex_grid.merge(user_df, on="hex_id", how="inner")
         if merged.empty:
             st.warning("No rows matched by `hex_id`. Check that hex_id values are integers between 0 and 99 (10x10 grid).")
         else:
             st.success(f"Matched {len(merged)} rows by hex_id.")
-            fig = plot_matched_hexes(hex_grid, merged, code_col="code", value_col="value", cmap_name=cmap, title="Matched hexes (by hex_id)")
-            st.pyplot(fig)
-
+            fig_final = plot_matched_hexes(hex_grid, merged, code_col="code", value_col="value", cmap_name=cmap)
+            st.pyplot(fig_final)
     else:
-        st.warning("Upload does not include 'hex_id', and no local mapping file is present. To plot, either:\n\n"
-                   "- Include a `hex_id` column in your upload (integers 0..99 for the 10x10 grid), or\n"
-                   "- Add a `state_hex_key.csv` file to the app folder that maps `hex_id` -> `code` and then upload a file with `code,value`.\n\n"
-                   "Use the template download as a starting point (you can add a `hex_id` column if you prefer).")
+        st.warning("Upload does not include 'hex_id', and no local mapping file is present. To plot, either include a `hex_id` column (0..99) or add `state_hex_key.csv` to the repo.")
         st.stop()
 
-    # Data preview + download of merged used rows
+    # show matched rows preview + download as CSV
     if 'merged' in locals() and not merged.empty:
         preview = merged.drop(columns=["verts"]) if "verts" in merged.columns else merged.copy()
         st.subheader("Matched rows (preview)")
@@ -262,5 +321,19 @@ if uploaded is not None:
 
         csv_buf = preview.to_csv(index=False).encode("utf-8")
         st.download_button("Download matched rows as CSV", data=csv_buf, file_name="matched_hex_rows.csv", mime="text/csv")
+
+        # download plotted figure as PNG (labelled as requested)
+        buf = io.BytesIO()
+        try:
+            fig_final.savefig(buf, dpi=150, bbox_inches="tight")
+            buf.seek(0)
+            st.download_button("Download as PNG", data=buf, file_name="hex_map.png", mime="image/png")
+        except Exception:
+            st.info("Figure PNG download not available.")
 else:
-    st.info("Upload your CSV (state, code, value). Use the template above for formatting. The app will show only matched hexes.")
+    # show caption under pre-upload preview area
+    st.markdown("<br>", unsafe_allow_html=True)
+
+# Footer caption
+st.markdown("---")
+st.markdown("<div style='text-align:center; font-size:12px;'>Made with Hex Map India</div>", unsafe_allow_html=True)
