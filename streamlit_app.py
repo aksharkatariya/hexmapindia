@@ -20,14 +20,11 @@ st.markdown(
     """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
-    /* Quincy is not a standard Google font; attempt import if hosted - fallback will apply */
     body, .css-18e3th9, .stApp {
         background-color: #EDE8D0;
         font-family: "Quincy", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
     }
-    /* narrow the sidebar so controls look left-aligned */
     .css-1d391kg { max-width: 320px; }
-    /* main block spacing */
     .main .block-container{
         padding-top: 1rem;
         padding-bottom: 1.5rem;
@@ -41,7 +38,7 @@ st.markdown(
 plt.rcParams["font.family"] = "Inter"
 
 # -----------------------
-# Small fixed hex grid (10x10, flat) — no UI controls for grid shape
+# Small fixed hex grid (10x10, flat)
 # -----------------------
 def hex_vertices(x, y, r=1, orientation="flat"):
     start_deg = 30 if orientation == "pointy" else 0
@@ -83,16 +80,13 @@ def make_hex_grid(rows=10, cols=10, r=1, orientation="flat"):
     return pd.DataFrame(hexes)
 
 # -----------------------
-# Attempt to load a local mapping file if present
-# (expected to map hex_id -> code). This is optional;
-# if absent, the app can match on uploaded 'hex_id' column.
+# Local mapping loader (optional)
 # -----------------------
 LOCAL_MAPPING_FILENAME = "state_hex_key.csv"
 
 def load_local_mapping(path):
     try:
         df = pd.read_csv(path)
-        # Heuristic: If it contains hex_id and code use them; else try second column as code
         cols_lower = [c.lower() for c in df.columns]
         if "hex_id" in cols_lower and "code" in cols_lower:
             df = df.rename(columns={df.columns[cols_lower.index("hex_id")]: "hex_id",
@@ -102,38 +96,36 @@ def load_local_mapping(path):
                 df = df.rename(columns={df.columns[0]: "hex_id", df.columns[1]: "code"})
         df = df[["hex_id", "code"]].copy()
         df["hex_id"] = pd.to_numeric(df["hex_id"], errors="coerce").astype("Int64")
-        # clean codes (same logic as earlier)
         df["code"] = df["code"].astype(str).str.replace("[^A-Za-z]", "", regex=True).str.upper().str[-2:]
         return df.dropna(subset=["hex_id"]).reset_index(drop=True)
     except Exception:
         return None
 
 # -----------------------
-# Plotting helper — ALWAYS shows only matched hexes
+# Plotting helper — only matched hexes displayed
 # -----------------------
 def plot_matched_hexes(hex_grid, merged_df, code_col="code", value_col="value", cmap_name="viridis"):
     """
-    hex_grid: dataframe with hex positions and verts
-    merged_df: hex_grid merged with uploaded data; should contain only matched rows
+    Plot merged_df (which should include hex_grid geometry via merge).
+    Returns (fig, ax, vals) where vals is the numeric array used for colorbar (or None).
     """
     if merged_df is None or merged_df.empty:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "No matched hexes to plot", ha="center", va="center")
         ax.set_axis_off()
-        return fig
+        return fig, ax, None
 
-    # colors
-    patches, facecolors = [], []
+    # Prepare color mapping
     vals = None
+    cmap_obj = None
+    norm = None
     if value_col in merged_df.columns:
         vals = pd.to_numeric(merged_df[value_col], errors="coerce")
         vmin, vmax = vals.min(), vals.max()
         cmap_obj = matplotlib.colormaps.get(cmap_name)
         norm = Normalize(vmin=vmin, vmax=vmax)
-    else:
-        cmap_obj = None
-        norm = None
 
+    patches, facecolors = [], []
     for _, row in merged_df.iterrows():
         poly = Polygon(row["verts"], closed=True, edgecolor="black", linewidth=0.5)
         patches.append(poly)
@@ -163,17 +155,11 @@ def plot_matched_hexes(hex_grid, merged_df, code_col="code", value_col="value", 
     ax.margins(0.05)
     ax.set_axis_off()
 
-    # safe colorbar: ensure mappable has array and pass ax
-    if vals is not None and not vals.isnull().all():
-        from matplotlib.cm import ScalarMappable
-        sm = ScalarMappable(cmap=cmap_obj, norm=norm)
-        sm.set_array(vals)
-        fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04, label=value_col)
-
-    return fig
+    # return fig and vals for later colorbar handling
+    return fig, ax, vals
 
 # -----------------------
-# Template data (your provided list)
+# Template data (provided list)
 # -----------------------
 TEMPLATE_CODES = [
     "AN","AP","AR","AS","BR","CH","CG","DL","DH","GA","GJ","HR","HP",
@@ -199,8 +185,7 @@ template_df = pd.DataFrame({
 })
 
 # -----------------------
-# Sidebar (left panel): Step 1 Download template; Step 2 Upload file
-# Also: Colormap and Hex size controls, and a colorbar preview
+# Sidebar: Step 1 download, Step 2 upload, colormap + hex size, colorbar preview
 # -----------------------
 st.sidebar.markdown("## Step 1 — Download template")
 st.sidebar.write("Download the pre-filled template, add `value` for the codes you want to plot, then re-upload.")
@@ -215,7 +200,6 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("## Step 2 — Upload edited file")
 uploaded = st.sidebar.file_uploader("Upload CSV (code,state,value). Optionally include hex_id to place directly.", type=["csv"])
 
-# Colormap + hex size side-by-side
 col1, col2 = st.sidebar.columns([2, 1])
 with col1:
     cmap_name = st.selectbox("Colormap", options=sorted(m for m in plt.colormaps()), index=plt.colormaps().index("viridis"))
@@ -225,14 +209,14 @@ with col2:
 st.sidebar.markdown("---")
 st.sidebar.write("Colorbar preview:")
 
-# Render a small colorbar in the sidebar (preview)
+# small colorbar preview in sidebar
 cb_fig, cb_ax = plt.subplots(figsize=(2.2, 0.5))
 cb_ax.set_axis_off()
 cmap_obj_preview = matplotlib.colormaps.get(cmap_name)
 norm_preview = Normalize(vmin=0, vmax=100)
 from matplotlib.cm import ScalarMappable
 sm_preview = ScalarMappable(cmap=cmap_obj_preview, norm=norm_preview)
-sm_preview.set_array([])  # required for colorbar to work
+sm_preview.set_array([])  # required
 cb_fig.colorbar(sm_preview, ax=cb_ax, orientation="horizontal", fraction=0.9, pad=0.1)
 st.sidebar.pyplot(cb_fig)
 plt.close(cb_fig)
@@ -240,16 +224,14 @@ plt.close(cb_fig)
 st.sidebar.markdown("---")
 
 # -----------------------
-# Top-level title (main page)
+# Main title
 # -----------------------
 st.markdown("# Hex Map India")
 
 # -----------------------
-# Build the default fixed grid with chosen hex radius
+# Build grid and load mapping if present
 # -----------------------
 hex_grid = make_hex_grid(rows=10, cols=10, r=hex_radius, orientation="flat")
-
-# Try to load local mapping
 local_mapping = None
 if os.path.exists(LOCAL_MAPPING_FILENAME):
     local_mapping = load_local_mapping(LOCAL_MAPPING_FILENAME)
@@ -259,19 +241,31 @@ if os.path.exists(LOCAL_MAPPING_FILENAME):
         st.warning("Found `state_hex_key.csv` but couldn't parse it. To use mapping ensure it contains `hex_id,code`.")
 
 # -----------------------
-# Show matched hexes before upload (if local mapping available)
+# Pre-upload preview area (show codes from mapping if available)
+# We'll create a single plot area and reuse it after upload.
 # -----------------------
-preview_col, _ = st.columns([3, 1])
-with preview_col:
+plot_col, _ = st.columns([3, 1])
+with plot_col:
     if local_mapping is not None:
+        # merge mapping with geometry
         preview_merged = local_mapping.merge(hex_grid, on="hex_id", how="inner")
-        fig_preview = plot_matched_hexes(hex_grid, preview_merged, code_col="code", value_col=None, cmap_name=cmap_name)
-        st.pyplot(fig_preview)
+        # initial plot (no values)
+        fig, ax, vals = plot_matched_hexes(hex_grid, preview_merged, code_col="code", value_col=None, cmap_name=cmap_name)
+        st.pyplot(fig)
+        # keep a reference to the merged dataframe to recolor later
+        current_merged = preview_merged.copy()
+        current_fig = fig
+        current_ax = ax
+        current_vals = vals
     else:
-        st.info("No local mapping found. You can still upload a file with a `hex_id` column to place hexes directly. The pre-upload preview is empty.")
+        st.info("No local mapping found. Upload a file with a `hex_id` column to place hexes directly.")
+        current_merged = pd.DataFrame()  # empty
+        current_fig = None
+        current_ax = None
+        current_vals = None
 
 # -----------------------
-# Process upload and show final output after upload
+# Handle upload: recolor/update the same map (do not create a separate map)
 # -----------------------
 if uploaded is not None:
     try:
@@ -280,7 +274,7 @@ if uploaded is not None:
         st.error(f"Could not read uploaded CSV: {e}")
         st.stop()
 
-    # Normalize column names
+    # normalize column names
     rename_map = {}
     for c in user_df.columns:
         lc = c.lower()
@@ -294,51 +288,55 @@ if uploaded is not None:
             rename_map[c] = "hex_id"
     user_df = user_df.rename(columns=rename_map)
 
-    # If codes present and local mapping exists: merge on code
+    # determine merged result depending on mapping availability or hex_id in upload
     if "code" in user_df.columns and local_mapping is not None:
         merged = local_mapping.merge(user_df, on="code", how="inner")
         merged = merged.merge(hex_grid, on="hex_id", how="left")
-        matched_count = len(merged)
-        if matched_count == 0:
+        if merged.empty:
             st.warning("No matching codes found between your upload and local mapping.")
         else:
-            st.success(f"Matched {matched_count} rows by code using `state_hex_key.csv`.")
-            fig_final = plot_matched_hexes(hex_grid, merged, code_col="code", value_col="value", cmap_name=cmap_name)
-            st.pyplot(fig_final)
+            st.success(f"Matched {len(merged)} rows by code. Recoloring existing map.")
+            # recolor: replace current_merged with merged and redraw in same area
+            current_merged = merged.copy()
+            fig, ax, vals = plot_matched_hexes(hex_grid, current_merged, code_col="code", value_col="value", cmap_name=cmap_name)
+            st.pyplot(fig)
+            current_fig = fig
+            current_ax = ax
+            current_vals = vals
 
-    # Else if upload includes hex_id, merge directly
     elif "hex_id" in user_df.columns:
         user_df["hex_id"] = pd.to_numeric(user_df["hex_id"], errors="coerce").astype("Int64")
         merged = hex_grid.merge(user_df, on="hex_id", how="inner")
         if merged.empty:
             st.warning("No rows matched by `hex_id`. Check that hex_id values are integers between 0 and 99 (10x10 grid).")
         else:
-            st.success(f"Matched {len(merged)} rows by hex_id.")
-            fig_final = plot_matched_hexes(hex_grid, merged, code_col="code", value_col="value", cmap_name=cmap_name)
-            st.pyplot(fig_final)
+            st.success(f"Matched {len(merged)} rows by hex_id. Recoloring existing map.")
+            current_merged = merged.copy()
+            fig, ax, vals = plot_matched_hexes(hex_grid, current_merged, code_col="code", value_col="value", cmap_name=cmap_name)
+            st.pyplot(fig)
+            current_fig = fig
+            current_ax = ax
+            current_vals = vals
     else:
         st.warning("Upload does not include 'hex_id', and no local mapping file is present. To plot, either include a `hex_id` column (0..99) or add `state_hex_key.csv` to the repo.")
         st.stop()
 
-    # show matched rows preview + download as CSV and PNG
-    if 'merged' in locals() and not merged.empty:
-        preview = merged.drop(columns=["verts"]) if "verts" in merged.columns else merged.copy()
+    # After recolor, present a small preview table (no download)
+    if not current_merged.empty:
+        preview = current_merged.drop(columns=["verts"]) if "verts" in current_merged.columns else current_merged.copy()
         st.subheader("Matched rows (preview)")
         st.dataframe(preview.head(200))
 
-        csv_buf = preview.to_csv(index=False).encode("utf-8")
-        st.download_button("Download matched rows as CSV", data=csv_buf, file_name="matched_hex_rows.csv", mime="text/csv")
-
-        # download plotted figure as PNG (labelled as requested)
+        # allow download of the PNG of the recolored figure
         buf = io.BytesIO()
         try:
-            fig_final.savefig(buf, dpi=150, bbox_inches="tight")
+            fig.savefig(buf, dpi=150, bbox_inches="tight")
             buf.seek(0)
             st.download_button("Download as PNG", data=buf, file_name="hex_map.png", mime="image/png")
         except Exception:
             st.info("Figure PNG download not available.")
 else:
-    # small spacer so preview area sits above footer nicely
+    # no upload: still show the caption
     st.markdown("<br>", unsafe_allow_html=True)
 
 # Footer caption
