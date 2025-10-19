@@ -125,11 +125,9 @@ def plot_matched_hexes(hex_grid, merged_df, code_col="code", value_col="value", 
     ax.add_collection(collection)
 
     # labels (use state name if provided, else code)
+# labels (always show state code)
     for _, row in merged_df.iterrows():
-        label = None
-        if "state" in row.index and pd.notna(row["state"]):
-            label = row["state"]
-        elif pd.notna(row.get(code_col)):
+        if pd.notna(row.get(code_col)):
             label = row.get(code_col)
         else:
             label = str(int(row["hex_id"]))
