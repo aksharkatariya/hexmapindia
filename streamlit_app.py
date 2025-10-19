@@ -106,12 +106,15 @@ def plot_matched_hexes(merged_df, cmap_name="viridis"):
     return fig
 
 # --- Sidebar setup ---
+# --- Sidebar: Step 1 — Download template ---
 st.sidebar.markdown("## Step 1 — Download template")
+
 TEMPLATE_CODES = [
     "AN","AP","AR","AS","BR","CH","CG","DL","DH","GA","GJ","HR","HP",
     "JK","JH","KA","KL","LA","LD","MP","MH","MN","ML","MZ","NL","OD",
     "PY","PB","RJ","SK","TN","TS","TR","UP","UK","WB"
 ]
+
 TEMPLATE_STATES = [
     "Andaman and Nicobar Islands","Andhra Pradesh","Arunachal Pradesh",
     "Assam","Bihar","Chandigarh","Chhattisgarh","Delhi",
@@ -122,15 +125,29 @@ TEMPLATE_STATES = [
     "Puducherry","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
     "Tripura","Uttar Pradesh","Uttarakhand","West Bengal"
 ]
-template_df = pd.DataFrame({
+
+# 1️⃣ Main table
+template_table = pd.DataFrame({
     "code": TEMPLATE_CODES,
     "state": TEMPLATE_STATES,
-    "value": ["" for _ in TEMPLATE_CODES],
-    "map_title": ["Hex Map India" for _ in TEMPLATE_CODES]  # placeholder title
+    "value": ["" for _ in TEMPLATE_CODES]
 })
+
+# 2️⃣ Single-row map title at top
+map_title_row = pd.DataFrame({
+    "map_title": ["Hex Map India"],  # only one cell
+    "code": [""],
+    "state": [""],
+    "value": [""]
+})
+
+# 3️⃣ Combine top title + table
+final_template = pd.concat([map_title_row, template_table], ignore_index=True)
+
+# 4️⃣ Download button
 st.sidebar.download_button(
     "Download template CSV",
-    data=template_df.to_csv(index=False),
+    data=final_template.to_csv(index=False),
     file_name="hex_map_template.csv",
     mime="text/csv"
 )
