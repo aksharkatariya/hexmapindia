@@ -159,17 +159,33 @@ st.markdown("Upload a CSV with columns `state, code, value` (example template av
 # Colormap selector (the only control)
 cmap = st.selectbox("Colormap", options=sorted(m for m in plt.colormaps()), index=plt.colormaps().index("viridis"))
 
-# Template download: a small example CSV with the required columns
 template_df = pd.DataFrame({
-    "state": ["Example State A", "Example State B", "Example State C"],
-    "code": ["EX", "EB", "EC"],
-    "value": [10.0, 5.0, 7.2]
+    "code": [
+        "AN","AP","AR","AS","BR","CH","CG","DL","DH","GA","GJ","HR","HP",
+        "JK","JH","KA","KL","LA","LD","MP","MH","MN","ML","MZ","NL","OD",
+        "PY","PB","RJ","SK","TN","TS","TR","UP","UK","WB"
+    ],
+    "state": [
+        "Andaman and Nicobar Islands","Andhra Pradesh","Arunachal Pradesh",
+        "Assam","Bihar","Chandigarh","Chhattisgarh","Delhi",
+        "Dadra and Nagar Haveli and Daman and Diu","Goa","Gujarat",
+        "Haryana","Himachal Pradesh","Jammu and Kashmir","Jharkhand",
+        "Karnataka","Kerala","Ladakh","Lakshadweep","Madhya Pradesh",
+        "Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland","Odisha",
+        "Puducherry","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana",
+        "Tripura","Uttar Pradesh","Uttarakhand","West Bengal"
+    ],
+    "value": [None]*36
 })
-template_buf = io.StringIO()
-template_df.to_csv(template_buf, index=False)
-template_bytes = template_buf.getvalue().encode("utf-8")
-st.download_button("Download upload template (state,code,value)", data=template_bytes, file_name="hex_upload_template.csv", mime="text/csv")
 
+st.write("### Download Template File")
+st.download_button(
+    label="Download Template CSV",
+    data=template_df.to_csv(index=False),
+    file_name="hex_map_template.csv",
+    mime="text/csv"
+)
+\
 st.markdown("---")
 uploaded = st.file_uploader("Upload CSV (state, code, value) — file must contain 'code' column. Optionally include 'hex_id' to place directly.", type=["csv"])
 
