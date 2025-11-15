@@ -12,42 +12,44 @@ from io import BytesIO
 st.set_page_config(page_title="India Hex Map Visualizer", layout="wide")
 
 # Hex map configuration - embedded directly
-HEX_MAP_KEY = """hex_id,code
-14,AN
-32,AP
-68,AR
-57,AS
-64,BR
-52,GG
-62,DL
-98,DD
-41,GA
-60,GJ
-72,HR
-82,HP
-81,JK
-53,JH
-31,KA
-21,KL
-92,LA
-1,LD
-51,MP
-50,MH
-48,MN
-47,ML
-37,MZ
-58,NL
-43,OD
-88,PB
-71,PY
-61,RJ
-66,SK
-22,TN
-65,TS
-42,TR
-46,UK
-63,UP
-73,UT
+HEX_MAP_KEY = """hex_id,code,state
+14,AN,Andaman and Nicobar Islands
+32,AP,Andhra Pradesh
+68,AR,Arunachal Pradesh
+57,AS,Assam
+64,BR,Bihar
+7,CH,Chandigarh
+52,GG,Chhattisgarh
+62,DL,Delhi
+98,DD,Daman and Diu
+41,GA,Goa
+60,GJ,Gujarat
+72,HR,Haryana
+82,HP,Himachal Pradesh
+81,JK,Jammu and Kashmir
+53,JH,Jharkhand
+31,KA,Karnataka
+21,KL,Kerala
+92,LA,Ladakh
+1,LD,Lakshadweep
+51,MP,Madhya Pradesh
+50,MH,Maharashtra
+48,MN,Manipur
+47,ML,Meghalaya
+37,MZ,Mizoram
+58,NL,Nagaland
+43,OD,Odisha
+88,PB,Puducherry
+71,PY,Punjab
+61,RJ,Rajasthan
+66,SK,Sikkim
+22,TN,Tamil Nadu
+65,TS,Telangana
+42,TR,Tripura
+46,UK,Uttarakhand
+63,UP,Uttar Pradesh
+73,UT,West Bengal
+36,WB,West Bengal
 """
 
 def hex_vertices(x, y, r=1):
@@ -84,10 +86,9 @@ def load_hex_mapping():
 def create_template():
     """Create template CSV with state codes."""
     mapping = load_hex_mapping()
-    template = mapping[["code"]].sort_values("code").reset_index(drop=True)
-    template["state"] = ""
+    template = mapping[["state", "code"]].sort_values("code").reset_index(drop=True)
     template["value"] = ""
-    return template[["state", "code", "value"]]
+    return template
 
 def plot_hex_map(data_df, cmap_name="plasma"):
     """Plot hexagons colored by values."""
