@@ -18,7 +18,6 @@ HEX_MAP_KEY = """hex_id,code
 68,AR
 57,AS
 64,BR
-,,CH
 52,GG
 62,DL
 98,DD
@@ -49,7 +48,6 @@ HEX_MAP_KEY = """hex_id,code
 46,UK
 63,UP
 73,UT
-,,WB
 """
 
 def hex_vertices(x, y, r=1):
