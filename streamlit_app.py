@@ -153,21 +153,6 @@ with st.sidebar:
     cmap_options = ["viridis", "plasma", "inferno", "magma", "cividis", 
                    "Blues", "Reds", "Greens", "YlOrRd", "RdYlGn", "Spectral"]
     cmap = st.selectbox("Color scheme", cmap_options, index=1)
-    
-    st.markdown("---")
-    st.subheader("Available State Codes")
-    mapping = load_hex_mapping()
-    codes = sorted(mapping["code"].unique())
-    
-    # Display in 2 columns
-    col1, col2 = st.columns(2)
-    mid = len(codes) // 2
-    with col1:
-        for code in codes[:mid]:
-            st.text(f"• {code}")
-    with col2:
-        for code in codes[mid:]:
-            st.text(f"• {code}")
 
 # Main content
 st.markdown("### Step 1: Download Template")
