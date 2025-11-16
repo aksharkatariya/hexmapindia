@@ -203,7 +203,7 @@ with st.sidebar:
     # Display counter
     st.markdown("---")
     counter = get_counter()
-    st.metric("Total Maps Created", f"{counter:,}")
+    st.metric("Total Maps Created Across the World", f"{counter:,}")
 
 # Main content
 st.markdown("### Step 1: Download Template")
