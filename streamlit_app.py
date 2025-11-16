@@ -78,6 +78,7 @@ HEX_MAP_KEY = """hex_id,code,state
 55,WB,West Bengal
 """
 
+
 def hex_vertices(x, y, r=1):
     """Return 6 vertices of a flat-top hexagon."""
     return [(x + r * math.cos(math.radians(60 * i)), 
@@ -116,29 +117,6 @@ def create_template():
     template["value"] = ""
     return template
 
-def increment_counter():
-    """Increment the global map counter."""
-    try:
-        result = st.session_state.get('counter_incremented', False)
-        if not result:
-            counter_result = st.session_state.storage.get('map_counter', True)
-            current_count = int(counter_result['value']) if counter_result else 0
-            new_count = current_count + 1
-            st.session_state.storage.set('map_counter', str(new_count), True)
-            st.session_state.counter_incremented = True
-            return new_count
-    except:
-        pass
-    return None
-
-def get_counter():
-    """Get current map counter."""
-    try:
-        result = st.session_state.storage.get('map_counter', True)
-        return int(result['value']) if result else 0
-    except:
-        return 0
-
 def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_name="", fig_size=(12, 10)):
     """Plot hexagons colored by values."""
     # Prepare hex grid with codes
@@ -153,7 +131,7 @@ def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_
         return None
     
     vmin, vmax = valid_vals.min(), valid_vals.max()
-    cmap = cm.get_cmap(cmap_name)
+    cmap = plt.get_cmap(cmap_name)
     norm = Normalize(vmin=vmin, vmax=vmax)
     
     # Create patches
@@ -201,10 +179,6 @@ def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_
 st.title("India Hex Map Visualizer")
 st.markdown("Create hexagonal choropleth maps for Indian states in 2 simple steps")
 
-# Initialize storage in session state
-if 'storage' not in st.session_state:
-    st.session_state.storage = window.storage if hasattr(window, 'storage') else None
-
 # Sidebar for settings
 with st.sidebar:
     st.header("Settings")
@@ -229,7 +203,7 @@ with st.sidebar:
     # Display counter
     st.markdown("---")
     counter = get_counter()
-    st.metric("Maps Created", f"{counter:,}")
+    st.metric("Total Maps Created", f"{counter:,}")
 
 # Main content
 st.markdown("### Step 1: Download Template")
