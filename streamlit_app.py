@@ -7,6 +7,8 @@ from matplotlib.collections import PatchCollection
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 from io import BytesIO
+import os
+import json
 
 # Page config
 st.set_page_config(page_title="India Hex Map Visualizer", layout="wide")
@@ -35,8 +37,6 @@ def increment_counter():
         return count
     except:
         return None
-
-
 # Hex map configuration - embedded directly
 HEX_MAP_KEY = """hex_id,code,state
 4,AN,Andaman and Nicobar Islands
@@ -77,7 +77,6 @@ HEX_MAP_KEY = """hex_id,code,state
 73,UT,West Bengal
 55,WB,West Bengal
 """
-
 
 def hex_vertices(x, y, r=1):
     """Return 6 vertices of a flat-top hexagon."""
@@ -202,6 +201,10 @@ def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_
 st.title("India Hex Map Visualizer")
 st.markdown("Create hexagonal choropleth maps for Indian states in 2 simple steps")
 
+# Initialize storage in session state
+if 'storage' not in st.session_state:
+    st.session_state.storage = window.storage if hasattr(window, 'storage') else None
+
 # Sidebar for settings
 with st.sidebar:
     st.header("Settings")
@@ -226,7 +229,7 @@ with st.sidebar:
     # Display counter
     st.markdown("---")
     counter = get_counter()
-    st.metric("Total Maps Created", f"{counter:,}")
+    st.metric("Maps Created", f"{counter:,}")
 
 # Main content
 st.markdown("### Step 1: Download Template")
@@ -308,3 +311,4 @@ if data_file:
 
 # Footer
 st.markdown("---")
+st.caption("Made with Love using Streamlit")
