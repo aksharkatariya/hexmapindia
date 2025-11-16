@@ -91,6 +91,29 @@ def create_template():
     template["value"] = ""
     return template
 
+def increment_counter():
+    """Increment the global map counter."""
+    try:
+        result = st.session_state.get('counter_incremented', False)
+        if not result:
+            counter_result = st.session_state.storage.get('map_counter', True)
+            current_count = int(counter_result['value']) if counter_result else 0
+            new_count = current_count + 1
+            st.session_state.storage.set('map_counter', str(new_count), True)
+            st.session_state.counter_incremented = True
+            return new_count
+    except:
+        pass
+    return None
+
+def get_counter():
+    """Get current map counter."""
+    try:
+        result = st.session_state.storage.get('map_counter', True)
+        return int(result['value']) if result else 0
+    except:
+        return 0
+
 def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_name="", fig_size=(12, 10)):
     """Plot hexagons colored by values."""
     # Prepare hex grid with codes
@@ -144,7 +167,7 @@ def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_
     cbar.set_label("Value", fontsize=12)
     
     # Add caption
-    caption = f"Made by {author_name} | Created with Love by HexMapIndia" if author_name else "Created with Love by HexMapIndia"
+    caption = f"Made with Love by {author_name} | Created with HexMapIndia" if author_name else "Created with HexMapIndia"
     fig.text(0.5, 0.02, caption, ha='center', fontsize=10, style='italic', color='gray')
     
     return fig
@@ -173,6 +196,11 @@ with st.sidebar:
         "Large (16x12)": (16, 12)
     }
     fig_size = size_map[map_size]
+    
+    # Display counter
+    st.markdown("---")
+    counter = get_counter()
+    st.metric("Total Maps Created", f"{counter:,}")
 
 # Main content
 st.markdown("### Step 1: Download Template")
@@ -231,6 +259,9 @@ if data_file:
                 fig = plot_hex_map(data_df, cmap_name=cmap, map_title=map_title, author_name=author_name, fig_size=fig_size)
                 
                 if fig:
+                    # Increment counter when map is successfully generated
+                    increment_counter()
+                    
                     st.pyplot(fig)
                     
                     # Download
