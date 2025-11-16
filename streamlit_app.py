@@ -13,12 +13,12 @@ st.set_page_config(page_title="India Hex Map Visualizer", layout="wide")
 
 # Hex map configuration - embedded directly
 HEX_MAP_KEY = """hex_id,code,state
-14,AN,Andaman and Nicobar Islands
+4,AN,Andaman and Nicobar Islands
 32,AP,Andhra Pradesh
 68,AR,Arunachal Pradesh
 57,AS,Assam
 64,BR,Bihar
-7,CH,Chandigarh
+87,CH,Chandigarh
 52,GG,Chhattisgarh
 62,DL,Delhi
 98,DD,Daman and Diu
@@ -31,7 +31,7 @@ HEX_MAP_KEY = """hex_id,code,state
 31,KA,Karnataka
 21,KL,Kerala
 92,LA,Ladakh
-1,LD,Lakshadweep
+0,LD,Lakshadweep
 51,MP,Madhya Pradesh
 50,MH,Maharashtra
 48,MN,Manipur
@@ -49,7 +49,7 @@ HEX_MAP_KEY = """hex_id,code,state
 46,UK,Uttarakhand
 63,UP,Uttar Pradesh
 73,UT,West Bengal
-36,WB,West Bengal
+55,WB,West Bengal
 """
 
 def hex_vertices(x, y, r=1):
