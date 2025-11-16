@@ -144,7 +144,7 @@ def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_
     cbar.set_label("Value", fontsize=12)
     
     # Add caption
-    caption = f"Made with Love by {author_name} | Created with HexMapIndia" if author_name else "Created with HexMapIndia"
+    caption = f"Made by {author_name} | Created with Love by HexMapIndia" if author_name else "Created with Love by HexMapIndia"
     fig.text(0.5, 0.02, caption, ha='center', fontsize=10, style='italic', color='gray')
     
     return fig
@@ -251,4 +251,3 @@ if data_file:
 
 # Footer
 st.markdown("---")
-st.caption("Made with Love using Streamlit")
