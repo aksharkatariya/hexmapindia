@@ -205,15 +205,6 @@ with st.sidebar:
     counter = get_counter()
     st.metric("Total Maps Created Across the World", f"{counter:,}")
 
-    # Buy Me a Coffee button
-    st.markdown("---")
-    st.markdown("### Support This Project")
-    st.markdown(
-        '<a href="https://www.buymeacoffee.com/aksharkatariya" target="_blank">'
-        '<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" '
-        'alt="Buy Me A Coffee" style="height: 45px !important;width: 162px !important;"></a>',
-        unsafe_allow_html=True
-    )
 
 # Main content
 st.markdown("### Step 1: Download Template")
@@ -301,6 +292,6 @@ st.markdown("### Support This Project")
 st.markdown(
     '<a href="https://www.buymeacoffee.com/aksharkatariya" target="_blank">'
     '<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" '
-    'alt="Buy Me A Coffee" style="height: 45px !important;width: 162px !important;"></a>',
+    'alt="Buy Me A Coffee" style="height: 30px !important;width: 120px !important;"></a>',
     unsafe_allow_html=True
 )
