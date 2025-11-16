@@ -52,6 +52,7 @@ HEX_MAP_KEY = """hex_id,code,state
 55,WB,West Bengal
 """
 
+
 def hex_vertices(x, y, r=1):
     """Return 6 vertices of a flat-top hexagon."""
     return [(x + r * math.cos(math.radians(60 * i)), 
@@ -90,7 +91,7 @@ def create_template():
     template["value"] = ""
     return template
 
-def plot_hex_map(data_df, cmap_name="plasma"):
+def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_name="", fig_size=(12, 10)):
     """Plot hexagons colored by values."""
     # Prepare hex grid with codes
     hex_grid = create_hex_grid()
@@ -120,7 +121,7 @@ def plot_hex_map(data_df, cmap_name="plasma"):
             colors.append("lightgrey")
     
     # Plot
-    fig, ax = plt.subplots(figsize=(12, 10))
+    fig, ax = plt.subplots(figsize=fig_size)
     collection = PatchCollection(patches, facecolor=colors, match_original=True)
     ax.add_collection(collection)
     
@@ -134,7 +135,7 @@ def plot_hex_map(data_df, cmap_name="plasma"):
     ax.autoscale()
     ax.margins(0.05)
     ax.axis("off")
-    ax.set_title("India Hex Map", fontsize=18, pad=20, weight='bold')
+    ax.set_title(map_title, fontsize=18, pad=20, weight='bold')
     
     # Colorbar
     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -142,18 +143,36 @@ def plot_hex_map(data_df, cmap_name="plasma"):
     cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label("Value", fontsize=12)
     
+    # Add caption
+    caption = f"Made with Love by {author_name} | Created with HexMapIndia" if author_name else "Created with HexMapIndia"
+    fig.text(0.5, 0.02, caption, ha='center', fontsize=10, style='italic', color='gray')
+    
     return fig
 
 # Main app
-st.title("🗺️ India Hex Map Visualizer")
+st.title("India Hex Map Visualizer")
 st.markdown("Create hexagonal choropleth maps for Indian states in 2 simple steps")
 
 # Sidebar for settings
 with st.sidebar:
-    st.header("⚙️ Settings")
+    st.header("Settings")
     cmap_options = ["viridis", "plasma", "inferno", "magma", "cividis", 
                    "Blues", "Reds", "Greens", "YlOrRd", "RdYlGn", "Spectral"]
     cmap = st.selectbox("Color scheme", cmap_options, index=1)
+    
+    map_title = st.text_input("Map title", value="India Hex Map")
+    author_name = st.text_input("Author name", value="")
+    
+    st.markdown("---")
+    map_size = st.radio("Map size", ["Small (10x8)", "Medium (12x10)", "Large (16x12)"], index=1)
+    
+    # Convert size selection to dimensions
+    size_map = {
+        "Small (10x8)": (10, 8),
+        "Medium (12x10)": (12, 10),
+        "Large (16x12)": (16, 12)
+    }
+    fig_size = size_map[map_size]
 
 # Main content
 st.markdown("### Step 1: Download Template")
@@ -165,14 +184,14 @@ csv_buffer.seek(0)
 col1, col2 = st.columns([1, 2])
 with col1:
     st.download_button(
-        label="📥 Download Template CSV",
+        label="Download Template CSV",
         data=csv_buffer,
         file_name="india_hex_map_template.csv",
         mime="text/csv",
         use_container_width=True
     )
 with col2:
-    st.info("Fill in the 'state' and 'value' columns, keeping the 'code' column unchanged")
+    st.info("Fill in the 'value' column with your data, keeping 'state' and 'code' unchanged")
 
 st.markdown("---")
 st.markdown("### Step 2: Upload Your Data")
@@ -198,21 +217,18 @@ if data_file:
             if len(data_df) == 0:
                 st.error("No valid numeric values found in 'value' column")
             else:
-                # Show preview
-                with st.expander("📊 Data Preview", expanded=True):
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("States", len(data_df))
-                    with col2:
-                        st.metric("Min", f"{data_df['value'].min():.2f}")
-                    with col3:
-                        st.metric("Max", f"{data_df['value'].max():.2f}")
-                    
-                    st.dataframe(data_df, use_container_width=True, height=200)
+                # Show statistics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("States", len(data_df))
+                with col2:
+                    st.metric("Min", f"{data_df['value'].min():.2f}")
+                with col3:
+                    st.metric("Max", f"{data_df['value'].max():.2f}")
                 
                 # Plot
                 st.markdown("---")
-                fig = plot_hex_map(data_df, cmap_name=cmap)
+                fig = plot_hex_map(data_df, cmap_name=cmap, map_title=map_title, author_name=author_name, fig_size=fig_size)
                 
                 if fig:
                     st.pyplot(fig)
@@ -223,7 +239,7 @@ if data_file:
                     img_buffer.seek(0)
                     
                     st.download_button(
-                        label="📥 Download Map (PNG)",
+                        label="Download Map (PNG)",
                         data=img_buffer,
                         file_name="india_hex_map.png",
                         mime="image/png",
@@ -235,4 +251,4 @@ if data_file:
 
 # Footer
 st.markdown("---")
-st.caption("Made with ❤️ using Streamlit")
+st.caption("Made with Love using Streamlit")
