@@ -11,6 +11,32 @@ from io import BytesIO
 # Page config
 st.set_page_config(page_title="India Hex Map Visualizer", layout="wide")
 
+# Counter file path
+COUNTER_FILE = "map_counter.json"
+
+def get_counter():
+    """Get current map counter."""
+    try:
+        if os.path.exists(COUNTER_FILE):
+            with open(COUNTER_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('count', 0)
+    except:
+        pass
+    return 0
+
+def increment_counter():
+    """Increment the global map counter."""
+    try:
+        count = get_counter()
+        count += 1
+        with open(COUNTER_FILE, 'w') as f:
+            json.dump({'count': count}, f)
+        return count
+    except:
+        return None
+
+
 # Hex map configuration - embedded directly
 HEX_MAP_KEY = """hex_id,code,state
 4,AN,Andaman and Nicobar Islands
