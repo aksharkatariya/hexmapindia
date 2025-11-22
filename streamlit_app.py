@@ -207,7 +207,7 @@ with st.sidebar:
     # Display counter
     st.markdown("---")
     counter = get_counter()
-    st.metric("🌍 Maps Created Worldwide", f"{counter:,}")
+    st.metric("Maps Created", f"{counter:,}")
     
    # Support section in sidebar
     st.markdown("---")
