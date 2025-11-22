@@ -209,13 +209,13 @@ with st.sidebar:
     counter = get_counter()
     st.metric("🌍 Maps Created Worldwide", f"{counter:,}")
     
-    # Support section in sidebar
+   # Support section in sidebar
     st.markdown("---")
     st.markdown("### ☕ Support This Project")
     st.markdown(
-        '<a href="https://www.buymeacoffee.com/aksharkatariya" target="_blank">'
-        '<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" '
-        'alt="Buy Me A Coffee" style="height: 15px !important;width: 50px !important;"></a>',
+        '<a href="https://www.buymeacoffee.com/aksharkatariya" target="_blank" '
+        'style="font-size: 16px; text-decoration: none; color: #FFDD00; font-weight: bold;">'
+        'Buy Me a Coffee</a>',
         unsafe_allow_html=True
     )
 
