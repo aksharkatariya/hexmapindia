@@ -70,7 +70,7 @@ HEX_MAP_KEY = """hex_id,code,state
 61,RJ,Rajasthan
 66,SK,Sikkim
 22,TN,Tamil Nadu
-65,TS,Telangana
+42,TS,Telangana
 46,TR,Tripura
 73,UK,Uttarakhand
 63,UP,Uttar Pradesh
