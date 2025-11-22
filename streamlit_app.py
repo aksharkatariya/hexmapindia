@@ -71,8 +71,8 @@ HEX_MAP_KEY = """hex_id,code,state
 66,SK,Sikkim
 22,TN,Tamil Nadu
 65,TS,Telangana
-42,TR,Tripura
-46,UK,Uttarakhand
+46,TR,Tripura
+42,UK,Uttarakhand
 63,UP,Uttar Pradesh
 73,UT,West Bengal
 55,WB,West Bengal
