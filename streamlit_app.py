@@ -215,7 +215,7 @@ with st.sidebar:
     st.markdown(
         '<a href="https://www.buymeacoffee.com/aksharkatariya" target="_blank">'
         '<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" '
-        'alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;"></a>',
+        'alt="Buy Me A Coffee" style="height: 15px !important;width: 50px !important;"></a>',
         unsafe_allow_html=True
     )
 
