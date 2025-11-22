@@ -214,7 +214,7 @@ with st.sidebar:
     st.markdown("### ☕ Support This Project")
     st.markdown(
         '<a href="https://www.buymeacoffee.com/aksharkatariya" target="_blank" '
-        'style="font-size: 16px; text-decoration: none; color: #FFDD00; font-weight: bold;">'
+        'style="font-size: 32px; text-decoration: none; color: #FFDD00; font-weight: bold;">'
         'Buy Me a Coffee</a>',
         unsafe_allow_html=True
     )
