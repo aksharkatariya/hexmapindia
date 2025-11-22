@@ -177,7 +177,7 @@ def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_
 
 # Main app
 st.title("🗺️ India Hex Map Visualizer")
-st.markdown("Create beautiful hexagonal choropleth maps for Indian states in 2 simple steps - Made by Akshar Katariya")
+st.markdown("Create beautiful hexagonal choropleth maps for Indian states in 2 simple steps • [Made by Akshar Katariya](https://aksharkatariya.github.io)")
 
 # Sidebar for settings
 with st.sidebar:
