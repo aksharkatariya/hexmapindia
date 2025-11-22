@@ -37,6 +37,7 @@ def increment_counter():
         return count
     except:
         return None
+
 # Hex map configuration - embedded directly
 HEX_MAP_KEY = """hex_id,code,state
 4,AN,Andaman and Nicobar Islands
@@ -116,7 +117,7 @@ def create_template():
     template["value"] = ""
     return template
 
-def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_name="", fig_size=(12, 10)):
+def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_name=""):
     """Plot hexagons colored by values."""
     # Prepare hex grid with codes
     hex_grid = create_hex_grid()
@@ -146,7 +147,7 @@ def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_
             colors.append("lightgrey")
     
     # Plot
-    fig, ax = plt.subplots(figsize=fig_size)
+    fig, ax = plt.subplots(figsize=(12, 10))
     collection = PatchCollection(patches, facecolor=colors, match_original=True)
     ax.add_collection(collection)
     
@@ -175,122 +176,141 @@ def plot_hex_map(data_df, cmap_name="plasma", map_title="India Hex Map", author_
     return fig
 
 # Main app
-st.title("India Hex Map Visualizer")
-st.markdown("Create hexagonal choropleth maps for Indian states in 2 simple steps")
+st.title("🗺️ India Hex Map Visualizer")
+st.markdown("Create beautiful hexagonal choropleth maps for Indian states in 2 simple steps - Made by Akshar Katariya")
 
 # Sidebar for settings
 with st.sidebar:
-    st.header("Settings")
+    st.header("⚙️ Customization")
+    
     cmap_options = ["viridis", "plasma", "inferno", "magma", "cividis", 
                    "Blues", "Reds", "Greens", "YlOrRd", "RdYlGn", "Spectral"]
-    cmap = st.selectbox("Color scheme", cmap_options, index=1)
+    cmap = st.selectbox(
+        "Color scheme",
+        cmap_options,
+        index=1,
+        help="Choose a color palette for your map"
+    )
     
-    map_title = st.text_input("Map title", value="India Hex Map")
-    author_name = st.text_input("Author name", value="")
+    map_title = st.text_input(
+        "Map title",
+        value="India Hex Map",
+        help="Enter a custom title for your map"
+    )
     
-    st.markdown("---")
-    map_size = st.radio("Map size", ["Small (10x8)", "Medium (12x10)", "Large (16x12)"], index=1)
-    
-    # Convert size selection to dimensions
-    size_map = {
-        "Small (10x8)": (10, 8),
-        "Medium (12x10)": (12, 10),
-        "Large (16x12)": (16, 12)
-    }
-    fig_size = size_map[map_size]
+    author_name = st.text_input(
+        "Author name (optional)",
+        value="",
+        help="Your name will appear in the map caption"
+    )
     
     # Display counter
     st.markdown("---")
     counter = get_counter()
-    st.metric("Total Maps Created Across the World", f"{counter:,}")
-
-
-# Main content
-st.markdown("### Step 1: Download Template")
-template = create_template()
-csv_buffer = BytesIO()
-template.to_csv(csv_buffer, index=False)
-csv_buffer.seek(0)
-
-col1, col2 = st.columns([1, 2])
-with col1:
-    st.download_button(
-        label="Download Template CSV",
-        data=csv_buffer,
-        file_name="india_hex_map_template.csv",
-        mime="text/csv",
-        use_container_width=True
+    st.metric("🌍 Maps Created Worldwide", f"{counter:,}")
+    
+    # Support section in sidebar
+    st.markdown("---")
+    st.markdown("### ☕ Support This Project")
+    st.markdown(
+        '<a href="https://www.buymeacoffee.com/aksharkatariya" target="_blank">'
+        '<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" '
+        'alt="Buy Me A Coffee" style="height: 40px !important;width: 145px !important;"></a>',
+        unsafe_allow_html=True
     )
-with col2:
-    st.info("Fill in the 'value' column with your data, keeping 'state' and 'code' unchanged")
 
-st.markdown("---")
-st.markdown("### Step 2: Upload Your Data")
 
-data_file = st.file_uploader(
-    "Upload your completed CSV file",
-    type=["csv"],
-    help="Upload the template with your state names and numeric values filled in"
-)
+# Main content - Step 1
+with st.container():
+    st.markdown("### 📥 Step 1: Download Template")
+    
+    template = create_template()
+    csv_buffer = BytesIO()
+    template.to_csv(csv_buffer, index=False)
+    csv_buffer.seek(0)
+    
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.download_button(
+            label="📄 Download Template CSV",
+            data=csv_buffer,
+            file_name="india_hex_map_template.csv",
+            mime="text/csv",
+            use_container_width=True,
+            help="Download the template CSV file to fill in your data"
+        )
+    with col2:
+        st.info("💡 **Instructions:** Fill in the 'value' column with your numeric data. Keep 'state' and 'code' columns unchanged.")
 
-if data_file:
-    try:
-        data_df = pd.read_csv(data_file)
-        
-        # Validate
-        if "code" not in data_df.columns or "value" not in data_df.columns:
-            st.error("CSV must contain 'code' and 'value' columns")
-        else:
-            # Clean data
-            data_df["value"] = pd.to_numeric(data_df["value"], errors="coerce")
-            data_df = data_df[data_df["value"].notna()]
+st.markdown("")
+
+# Main content - Step 2
+with st.container():
+    st.markdown("### 📤 Step 2: Upload Your Data")
+    
+    data_file = st.file_uploader(
+        "Choose your completed CSV file",
+        type=["csv"],
+        help="Upload the template file after filling in the 'value' column with your data"
+    )
+
+    if data_file:
+        try:
+            data_df = pd.read_csv(data_file)
             
-            if len(data_df) == 0:
-                st.error("No valid numeric values found in 'value' column")
+            # Validate
+            if "code" not in data_df.columns or "value" not in data_df.columns:
+                st.error("❌ CSV must contain 'code' and 'value' columns")
             else:
-                # Show statistics
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("States", len(data_df))
-                with col2:
-                    st.metric("Min", f"{data_df['value'].min():.2f}")
-                with col3:
-                    st.metric("Max", f"{data_df['value'].max():.2f}")
+                # Clean data
+                data_df["value"] = pd.to_numeric(data_df["value"], errors="coerce")
+                data_df = data_df[data_df["value"].notna()]
                 
-                # Plot
-                st.markdown("---")
-                fig = plot_hex_map(data_df, cmap_name=cmap, map_title=map_title, author_name=author_name, fig_size=fig_size)
-                
-                if fig:
-                    # Increment counter when map is successfully generated
-                    increment_counter()
+                if len(data_df) == 0:
+                    st.error("❌ No valid numeric values found in 'value' column")
+                else:
+                    # Show statistics
+                    st.markdown("#### 📊 Data Summary")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("States/UTs", len(data_df))
+                    with col2:
+                        st.metric("Minimum Value", f"{data_df['value'].min():.2f}")
+                    with col3:
+                        st.metric("Maximum Value", f"{data_df['value'].max():.2f}")
                     
-                    st.pyplot(fig)
+                    # Plot
+                    st.markdown("---")
+                    st.markdown("#### 🗺️ Your Map")
                     
-                    # Download
-                    img_buffer = BytesIO()
-                    fig.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
-                    img_buffer.seek(0)
+                    with st.spinner("Generating your map..."):
+                        fig = plot_hex_map(data_df, cmap_name=cmap, map_title=map_title, author_name=author_name)
                     
-                    st.download_button(
-                        label="Download Map (PNG)",
-                        data=img_buffer,
-                        file_name="india_hex_map.png",
-                        mime="image/png",
-                        use_container_width=True
-                    )
-                    
-    except Exception as e:
-        st.error(f"Error: {str(e)}")
+                    if fig:
+                        # Increment counter when map is successfully generated
+                        increment_counter()
+                        
+                        st.pyplot(fig)
+                        
+                        # Download
+                        img_buffer = BytesIO()
+                        fig.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+                        img_buffer.seek(0)
+                        
+                        st.download_button(
+                            label="💾 Download Map (High Resolution PNG)",
+                            data=img_buffer,
+                            file_name="india_hex_map.png",
+                            mime="image/png",
+                            use_container_width=True,
+                            help="Download your map as a high-resolution PNG image (300 DPI)"
+                        )
+                        
+                        st.success("✅ Map generated successfully!")
+                        
+        except Exception as e:
+            st.error(f"❌ Error processing file: {str(e)}")
 
 # Footer
 st.markdown("---")
-st.caption("Made with Love using Streamlit")
-st.markdown("---")
-st.markdown("### Support This Project")
-st.markdown(
-    '<a href="https://www.buymeacoffee.com/aksharkatariya" target="_blank">'
-    '<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" '
-    'alt="Buy Me A Coffee" style="height: 14px !important;width: 56px !important;"></a>',
-    unsafe_allow_html=True
-)
+st.caption("Made with ❤️ using Streamlit | HexMapIndia")
