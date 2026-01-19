@@ -66,8 +66,8 @@ HEX_MAP_KEY = """hex_id,code,state
 37,MZ,Mizoram
 58,NL,Nagaland
 43,OD,Odisha
-88,PB,Puducherry
-71,PY,Punjab
+71,PB,Puducherry
+88,PY,Punjab
 61,RJ,Rajasthan
 66,SK,Sikkim
 22,TN,Tamil Nadu
