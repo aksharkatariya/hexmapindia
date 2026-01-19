@@ -46,7 +46,7 @@ HEX_MAP_KEY = """hex_id,code,state
 57,AS,Assam
 64,BR,Bihar
 87,CH,Chandigarh
-52,GG,Chhattisgarh
+52,CG,Chhattisgarh
 62,DL,Delhi
 98,DD,Daman and Diu
 41,GA,Goa
