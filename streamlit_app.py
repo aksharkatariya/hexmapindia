@@ -313,4 +313,4 @@ with st.container():
 
 # Footer
 st.markdown("---")
-st.caption("Made with ❤️ using HexMapIndia")
+st.caption("Made with Love using HexMapIndia")
